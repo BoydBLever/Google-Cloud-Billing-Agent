@@ -111,3 +111,4 @@ uvicorn==0.34.3
 websockets==15.0.1
 yarl==1.20.1
 zstandard==0.23.0
+google-genai>=0.6.0

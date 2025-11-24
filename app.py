@@ -6,48 +6,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import io
 import base64
-from openai import OpenAI
 from utils.audio_utils import AudioProcessor
 from utils.llm_utils import LLMProcessor
 
 # Load environment variables
 load_dotenv()
 
-# Configure OpenAI API
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    st.error("Please set OPENAI_API_KEY in .env file")
-else:
-            # Check API quota
-    try:
-        client = OpenAI()
-        # Try a small API call to check quota
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "Hi"}],
-            max_tokens=1
-        )
-    except Exception as e:
-        if "insufficient_quota" in str(e):
-            st.error("""
-            ⚠️ OpenAI API quota exceeded!
-
-            Please check your API usage and billing details at:
-            https://platform.openai.com/account/billing/overview
-            
-            You can:
-            1. Add payment method to get more quota
-            2. Wait for next billing cycle
-            3. Create new account for free credits
-            
-            See README.md troubleshooting section for details.
-            """)
-        else:
-            st.error(f"API verification error: {str(e)}")
-
 # Configuration parameters
 SAMPLE_RATE = int(os.getenv("SAMPLE_RATE", "16000"))
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
+LLM_MODEL = os.getenv("LLM_MODEL")
+if not LLM_MODEL:
+    raise ValueError("Missing LLM_MODEL in .env")
 
 # Initialize processors
 audio_processor = AudioProcessor(sample_rate=SAMPLE_RATE)
