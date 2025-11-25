@@ -1,132 +1,84 @@
-import sounddevice as sd
-import soundfile as sf
-import numpy as np
-import tempfile
-import openai
-from gtts import gTTS
+# utils/audio_utils.py
 import os
+import uuid
+import io
 from typing import Optional
+from gtts import gTTS
+
+from google.cloud import speech_v2 as speech
+from google.cloud.speech_v2.types import cloud_speech
+from google.api_core.client_options import ClientOptions
 
 class AudioProcessor:
+    """
+    Cloud Run-safe audio processor:
+    - Expects audio files already converted to 16k mono WAV (via ffmpeg)
+    - Uses Google Speech-to-Text v2 (Chirp 3) for transcription
+    - Uses gTTS for speech output
+    """
     def __init__(self, sample_rate: int = 16000):
-        """
-        Initialize the audio processor
-        
-        Args:
-            sample_rate: Sampling rate in Hz (default: 16000)
-        """
         self.sample_rate = sample_rate
-        self.temp_dir = tempfile.mkdtemp()
+        self.speech_client = speech.SpeechClient()
 
-    def record_audio(self, duration: int = 5) -> Optional[str]:
-        """
-        Record audio
-        
-        Args:
-            duration: Recording duration in seconds
-            
-        Returns:
-            Path to the recorded file
-        """
-        try:
-            # Record audio
-            recording = sd.rec(
-                int(duration * self.sample_rate),
-                samplerate=self.sample_rate,
-                channels=1
-            )
-            sd.wait()  # Wait for recording to complete
-            
-            # Save the recorded audio
-            temp_path = os.path.join(self.temp_dir, 'recording.wav')
-            sf.write(temp_path, recording, self.sample_rate)
-            
-            return temp_path
-        except Exception as e:
-            print(f"Recording error: {str(e)}")
-            return None
+        # Cloud Run auto-populates GOOGLE_CLOUD_PROJECT
+        self.project_id = (
+            os.getenv("GOOGLE_CLOUD_PROJECT")
+            or os.getenv("GCP_PROJECT")
+            or os.getenv("PROJECT_ID")
+        )
+        if not self.project_id:
+            raise ValueError("Missing GOOGLE_CLOUD_PROJECT for STT v2.")
+
+        self.location = os.getenv("SPEECH_LOCATION", "us")
+
+        # Point the Speech-to-Text v2 client at the correct regional endpoint
+        endpoint = f"{self.location}-speech.googleapis.com"
+
+        self.speech_client = speech.SpeechClient(
+            client_options=ClientOptions(api_endpoint=endpoint)
+        )
+
+        # Default ephemeral recognizer
+        self.recognizer = f"projects/{self.project_id}/locations/{self.location}/recognizers/_"
 
     def transcribe_audio(self, audio_path: str) -> Optional[str]:
         """
-        Transcribe audio using Whisper API
-        
-        Args:
-            audio_path: Path to audio file
-            
-        Returns:
-            Transcribed text
+        Transcribe audio using Google Cloud Speech-to-Text v2 + Chirp 3.
         """
         try:
-            with open(audio_path, 'rb') as audio_file:
-                client = openai.OpenAI()
-                transcript = client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file
-                )
-                return transcript.text
-        except Exception as e:
-            print(f"Transcription error: {str(e)}")
+            with io.open(audio_path, "rb") as audio_file:
+                content = audio_file.read()
+
+            config = cloud_speech.RecognitionConfig(
+                auto_decoding_config=cloud_speech.AutoDetectDecodingConfig(),
+                model="chirp_3",
+                language_codes=["en-US"],
+            )
+
+            request = cloud_speech.RecognizeRequest(
+                recognizer=self.recognizer,
+                config=config,
+                content=content,
+            )
+
+            response = self.speech_client.recognize(request=request)
+
+            if response.results:
+                return response.results[0].alternatives[0].transcript.strip()
             return None
 
-    def text_to_speech(self, text: str, lang: str = 'zh') -> Optional[str]:
-        """
-        Convert text to speech
-        
-        Args:
-            text: Text to convert
-            lang: Language code
-            
-        Returns:
-            Path to generated audio file
-        """
-        try:
-            tts = gTTS(text=text, lang=lang)
-            temp_path = os.path.join(self.temp_dir, 'response.mp3')
-            tts.save(temp_path)
-            return temp_path
         except Exception as e:
-            print(f"Text-to-speech error: {str(e)}")
-            return None
+            print(f"CHIRP_ERROR: {e}")
+            return f"CHIRP_ERROR: {e}"
 
-    def preprocess_audio(self, audio_path: str) -> Optional[str]:
+    def text_to_speech(self, text: str) -> Optional[str]:
         """
-        Preprocess audio file (resampling, noise reduction, etc.)
-        
-        Args:
-            audio_path: Input audio file path
-            
-        Returns:
-            Path to processed audio file
+        Convert text → mp3 via gTTS and return the file path.
         """
         try:
-            # Read audio file
-            data, sample_rate = sf.read(audio_path)
-            
-            # Convert stereo to mono if needed
-            if len(data.shape) > 1:
-                data = np.mean(data, axis=1)
-            
-            # Resample to target sample rate
-            if sample_rate != self.sample_rate:
-                # Resampling logic can be added here
-                pass
-            
-            # Save processed audio
-            processed_path = os.path.join(self.temp_dir, 'processed_audio.wav')
-            sf.write(processed_path, data, self.sample_rate)
-            
-            return processed_path
-        except Exception as e:
-            print(f"Audio preprocessing error: {str(e)}")
+            filename = f"tts_{uuid.uuid4().hex}.mp3"
+            tts = gTTS(text=text, lang="en")
+            tts.save(filename)
+            return filename
+        except Exception:
             return None
-
-    def cleanup(self):
-        """
-        Clean up temporary files
-        """
-        import shutil
-        try:
-            shutil.rmtree(self.temp_dir)
-        except Exception as e:
-            print(f"Error cleaning temporary files: {str(e)}")
-            

@@ -1,55 +1,44 @@
 import os
 from typing import List, Dict, Any, Optional
-from google import genai
-from google.genai import types
+
+import google.generativeai as genai
+from google.generativeai import types
 
 
 class LLMProcessor:
-    def __init__(self, model_name: str = "gemini-1.5-flash", temperature: float = 0.7):
-        """
-        Initialize Gemini LLM processor.
-        """
+    def __init__(self, model_name: str = "gemini-2.5-flash-lite", temperature: float = 0.7):
         self.model_name = model_name
         self.temperature = temperature
+        self.model = None     
 
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY is missing from environment variables.")
-
-        # Gemini client
-        self.client = genai.Client(api_key=api_key)
-
-        # Default system prompt
         self.default_system_prompt = (
             "You are a professional customer service representative who gives concise, "
             "friendly, and accurate answers. If unsure, say you don’t know."
         )
 
-    def _format_messages(self, prompt: str, conversation_history):
-        """
-        Convert your conversation history into Gemini format.
-        """
-        contents = []
+    def _lazy_init(self):
+        if self.model is not None:
+            return  # already initialized
 
-        # System message
-        contents.append(types.Content(role="model", parts=[types.Part(text=self.default_system_prompt)]))
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY is missing from environment variables.")
 
-        # Past turns
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel(self.model_name)
+
+    def _build_prompt(self, prompt: str, conversation_history: Optional[List[Dict[str, str]]], system_prompt: Optional[str]) -> str:
+        system_content = system_prompt if system_prompt else self.default_system_prompt
+        parts = [f"SYSTEM: {system_content}"]
+
         if conversation_history:
-            for message in conversation_history:
-                role = message["role"]
-                text = message["content"]
-                contents.append(
-                    types.Content(
-                        role="user" if role == "user" else "model",
-                        parts=[types.Part(text=text)]
-                    )
-                )
+            for m in conversation_history:
+                role = m.get("role", "user")
+                content = m.get("content", "")
+                parts.append(f"{role.upper()}: {content}")
 
-        # Current user prompt
-        contents.append(types.Content(role="user", parts=[types.Part(text=prompt)]))
-
-        return contents
+        parts.append(f"USER: {prompt}")
+        return "\n".join(parts)
 
     def generate_response(
         self,
@@ -57,32 +46,21 @@ class LLMProcessor:
         conversation_history: Optional[List[Dict[str, str]]] = None,
         system_prompt: Optional[str] = None,
     ) -> str:
-        """
-        Generate a response using Gemini.
-        """
-        # Optional system override
-        if system_prompt:
-            self.default_system_prompt = system_prompt
 
-        # Format content
-        contents = self._format_messages(prompt, conversation_history)
+        self._lazy_init()
 
-        # Call Gemini
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=contents,
-            config=types.GenerateContentConfig(
+        full_prompt = self._build_prompt(prompt, conversation_history, system_prompt)
+
+        resp = self.model.generate_content(
+            full_prompt,
+            generation_config=types.GenerationConfig(
                 temperature=self.temperature,
-                max_output_tokens=200
-            )
+                max_output_tokens=200,
+            ),
         )
-
-        return response.text
+        return (resp.text or "").strip()
 
     def customize_for_call_center(self) -> None:
-        """
-        Apply call center–specific system prompt.
-        """
         self.default_system_prompt = (
             "You are a professional call center agent. Guidelines:\n"
             "1. Be friendly, concise, and helpful.\n"
@@ -92,9 +70,6 @@ class LLMProcessor:
         )
 
     def customize_for_lead_generation(self) -> None:
-        """
-        Apply lead generation–specific system prompt.
-        """
         self.default_system_prompt = (
             "You are a professional lead-gen assistant. Guidelines:\n"
             "1. Greet warmly.\n"
@@ -105,29 +80,22 @@ class LLMProcessor:
         )
 
     def analyze_conversation(self, conversation_history: List[Dict[str, str]]) -> Dict[str, Any]:
-        """
-        Use Gemini to analyze the conversation and extract structured insights.
-        """
-        analysis_text = "Analyze the following conversation:\n"
-
-        for msg in conversation_history:
-            who = "Customer" if msg["role"] == "user" else "Assistant"
-            analysis_text += f"{who}: {msg['content']}\n"
-
-        contents = [
-            types.Content(
-                role="user",
-                parts=[types.Part(text=analysis_text)]
-            )
-        ]
-
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                temperature=0.5,
-                max_output_tokens=300
-            )
+        analysis_prompt = (
+            "Analyze the following conversation and extract:\n"
+            "1. Customer's main issues\n"
+            "2. Customer's emotional state\n"
+            "3. Key info points\n"
+            "4. Suggested follow-up actions\n\n"
         )
+        for m in conversation_history:
+            who = "Customer" if m["role"] == "user" else "Assistant"
+            analysis_prompt += f"{who}: {m['content']}\n"
 
-        return {"analysis": response.text}
+        resp = self.model.generate_content(
+            analysis_prompt,
+            generation_config=types.GenerationConfig(
+                temperature=0.5,
+                max_output_tokens=300,
+            ),
+        )
+        return {"analysis": (resp.text or "").strip()}
