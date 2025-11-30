@@ -93,7 +93,7 @@ Operation "operations/acat.p2-155021701306-95be0a20-f588-4f57-ad7f-57e3540848b0"
 gcloud builds submit --tag gcr.io/<PROJECT_ID>/google-cloud-billing-agent .
 ```
 
-6. Deploy to Cloud Run. Please remember to update <PROJECT_ID>.
+6. Deploy to Cloud Run. Please remember to update <PROJECT_ID> and "YOUR_GEMINI_KEY"
 ```
 gcloud run deploy google-cloud-billing-agent \
 --image gcr.io/<PROJECT_ID>/google-cloud-billing-agent \
