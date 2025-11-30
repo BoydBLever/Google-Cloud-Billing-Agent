@@ -1,0 +1,17 @@
+{
+  "loyalty_discount": {
+    "name": "10% Loyalty Discount",
+    "description": "10% for accounts active longer than 12 months.",
+    "percent": 10
+  },
+  "sustained_use_discount": {
+    "name": "5% Sustained Use Discount",
+    "description": "5% discount for consistent month-over-month spend.",
+    "percent": 5
+  },
+  "credit_policy": {
+    "name": "Promo Credit Policy",
+    "description": "Credits expire after 12 months.",
+    "applies_to": "all accounts"
+  }
+}

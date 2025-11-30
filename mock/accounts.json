@@ -1,0 +1,16 @@
+{
+  "account_123": {
+    "email": "customer1@example.com",
+    "plan": "Standard",
+    "months_active": 14,
+    "last_month_bill": 132.50,
+    "eligible_discount": "loyalty_discount"
+  },
+  "account_456": {
+    "email": "customer2@example.com",
+    "plan": "Enterprise",
+    "months_active": 6,
+    "last_month_bill": 420.10,
+    "eligible_discount": "sustained_use_discount"
+  }
+}

@@ -58,7 +58,7 @@ def process_transcript(transcript: str):
     st.info(f"Transcription: {transcript}")
 
     with st.spinner("Generating response..."):
-        response = llm_processor.generate_response(
+        response = llm_processor.run_agent_step(
             transcript,
             conversation_history=st.session_state.messages,
         )
@@ -167,7 +167,7 @@ def handle_text_input():
         return
 
     with st.spinner("Generating response..."):
-        response = llm_processor.generate_response(
+        response = llm_processor.run_agent_step(
             user_input,
             conversation_history=st.session_state.messages,
         )
