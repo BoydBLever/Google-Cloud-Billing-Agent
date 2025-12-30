@@ -1,7 +1,7 @@
 # Google Build and Blog 2025
-# Project: Google Cloud Billing Agent
+# Geeble: Google Cloud Billing Voice Bot
 
-This project is for Google Build and Blog 2025. It is a Google Cloud Billing Voice Agent built as a Streamlit app deployed on severless Google Cloud Run. Users speak a question about their Google Cloud bill. The captured audio is sent to Google Cloud Speech-to-Text v2 using the Chirp model (for example, chirp_3). The transcript is then passed to Gemini 2.5-Flash-Lite via the google-generativeai Python SDK to reason about the user’s billing question, select exactly one action per turn via a structured JSON contract, and return a final answer. Responses are converted to speech using gTTS .
+This project is for Google Build and Blog 2025. It is a Google Cloud Billing Call-Center Voice Bot built as a Streamlit app deployed on severless Google Cloud Run. Users speak a question about their Google Cloud bill. The captured audio is sent to Google Cloud Speech-to-Text v2 using the Chirp model (for example, chirp_3). The transcript is then passed to Gemini 2.5-Flash-Lite via the google-generativeai Python SDK to reason about the user’s billing question, select exactly one action per turn via a structured JSON contract, and return a final answer. Responses are converted to speech using gTTS .
 
 ---
 
